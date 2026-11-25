@@ -1,649 +1,165 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Water ATM MQTT Control & Telemetry</title>
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  <style>
-    :root {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --card-2: #162033;
-      --border: #334155;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --accent: #0ea5e9;
-      --accent-hover: #0284c7;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.45;
-      padding: 16px;
-    }
-
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: grid;
-      gap: 16px;
-    }
-
-    header {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px 18px;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .title-group h1 { font-size: 1.15rem; font-weight: 700; }
-    .title-group p { font-size: 0.85rem; color: var(--muted); }
-
-    .status-bar {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .badge {
-      padding: 5px 10px;
-      border-radius: 999px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      border: 1px solid var(--border);
-      background: var(--card-2);
-    }
-
-    .badge.ok {
-      color: #86efac;
-      border-color: #166534;
-      background: rgba(34, 197, 94, 0.14);
-    }
-
-    .badge.warn {
-      color: #fcd34d;
-      border-color: #92400e;
-      background: rgba(245, 158, 11, 0.14);
-    }
-
-    .badge.bad {
-      color: #fca5a5;
-      border-color: #991b1b;
-      background: rgba(239, 68, 68, 0.14);
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
-      gap: 16px;
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .card h2 {
-      font-size: 0.98rem;
-      font-weight: 700;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 8px;
-    }
-
-    .broker-row {
-      display: grid;
-      grid-template-columns: 1fr auto auto;
-      gap: 8px;
-    }
-
-    .form-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-
-    .field { display: flex; flex-direction: column; gap: 4px; }
-    .field.full { grid-column: 1 / -1; }
-    label { font-size: 0.78rem; color: var(--muted); }
-
-    input, select, button {
-      font: inherit;
-      border-radius: 7px;
-      border: 1px solid var(--border);
-      padding: 8px 10px;
-      background: var(--card-2);
-      color: var(--text);
-    }
-
-    button {
-      cursor: pointer;
-      font-weight: 600;
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
-
-    button:hover { background: var(--accent-hover); }
-
-    button.secondary {
-      background: var(--card-2);
-      border-color: var(--border);
-      color: var(--text);
-    }
-
-    button.sm { padding: 5px 8px; font-size: 0.78rem; }
-
-    .telemetry-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-    }
-
-    .stat {
-      background: var(--card-2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px;
-    }
-
-    .stat .label { font-size: 0.75rem; color: var(--muted); }
-    .stat .val { font-size: 1.15rem; font-weight: 700; margin-top: 2px; }
-
-    .unknown-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      min-height: 36px;
-      align-items: center;
-    }
-
-    .unknown-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(245, 158, 11, 0.14);
-      border: 1px solid #92400e;
-      color: #fde68a;
-      padding: 5px 10px;
-      border-radius: 999px;
-      font-size: 0.8rem;
-      cursor: pointer;
-    }
-
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
-
-    th, td {
-      text-align: left;
-      padding: 8px 10px;
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-    }
-
-    th { color: var(--muted); font-size: 0.76rem; text-transform: uppercase; }
-    .actions { display: flex; gap: 6px; }
-
-    .log-box {
-      background: var(--card-2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px;
-      max-height: 180px;
-      overflow-y: auto;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.78rem;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .muted { color: var(--muted); font-size: 0.82rem; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Water ATM Dashboard</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--tx:#17212b;--mut:#6b7785;--bd:#dde3ea;--ac:#0b78d0;--ok:#1a9d55;--bad:#d33c3c;--warn:#d98a00}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1419;--card:#17202a;--tx:#e6edf3;--mut:#8b99a8;--bd:#2a3644;--ac:#4da3ee;--ok:#3ccf82;--bad:#f06a6a;--warn:#f0b040}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--bd);background:var(--card)}
+h1{font-size:18px;margin:0}
+h2{font-size:14px;margin:0 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+main{max-width:1000px;margin:0 auto;padding:16px;display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px}
+.wide{grid-column:1/-1}
+.pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid var(--bd)}
+.on{color:var(--ok)}.off{color:var(--bad)}.hold{color:var(--warn)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px}.kv span:nth-child(odd){color:var(--mut)}
+.big{font-size:28px;font-weight:700}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--bd)}
+th{color:var(--mut);font-weight:500;font-size:13px}
+input,button{font:inherit;padding:6px 10px;border-radius:6px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
+button{cursor:pointer;background:var(--ac);color:#fff;border-color:var(--ac)}
+button.g{background:transparent;color:var(--tx);border-color:var(--bd)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.row input{flex:1;min-width:90px}
+#log{max-height:220px;overflow:auto;font:13px ui-monospace,monospace;color:var(--mut)}
+.tbl{overflow-x:auto}
+</style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="title-group">
-        <h1>Water ATM MQTT Control & Telemetry</h1>
-        <p id="deviceMeta">Nano Device: Waiting for heartbeat...</p>
-      </div>
-      <div class="status-bar">
-        <span id="mqttBadge" class="badge bad">Browser MQTT: Disconnected</span>
-        <span id="nanoOnlineBadge" class="badge bad">Nano: Offline</span>
-        <span id="devBadge" class="badge warn">State: Unknown</span>
-        <span id="pumpBadge" class="badge">Pump: OFF</span>
-      </div>
-    </header>
-
-    <section class="card">
-      <h2>MQTT Broker Connection</h2>
-      <div class="broker-row">
-        <select id="brokerSelect">
-          <option value="wss://broker.hivemq.com:8884/mqtt">HiveMQ Public (TLS 8884)</option>
-          <option value="wss://broker.emqx.io:8084/mqtt">EMQX Public (TLS 8084)</option>
-        </select>
-        <button id="connectBtn" type="button">Connect</button>
-        <button id="disconnectBtn" type="button" class="secondary">Disconnect</button>
-      </div>
-    </section>
-
-    <div class="grid-2">
-      <section class="card">
-        <h2>Register / Update RFID Card</h2>
-        <div>
-          <div class="muted" style="margin-bottom:6px;">
-            Unknown Cards Detected (click a UID to fill form):
-          </div>
-          <div id="unknownList" class="unknown-list">
-            <span class="muted">No unknown cards yet.</span>
-          </div>
-        </div>
-
-        <form id="cardForm" class="form-grid">
-          <div class="field">
-            <label for="cardUid">Card UID</label>
-            <input id="cardUid" type="text" placeholder="e.g. 04A1B2C3" required />
-          </div>
-          <div class="field">
-            <label for="cardName">User Name</label>
-            <input id="cardName" type="text" placeholder="e.g. Rahim" required />
-          </div>
-          <div class="field">
-            <label for="cardBalance">Balance (Tk)</label>
-            <input id="cardBalance" type="number" step="0.01" min="0" value="100.00" required />
-          </div>
-          <div class="field">
-            <label for="cardActive">Status</label>
-            <select id="cardActive">
-              <option value="true" selected>Active</option>
-              <option value="false">Blocked / Inactive</option>
-            </select>
-          </div>
-          <div class="field full">
-            <button type="submit">Publish Card to Device (wateratm/card/add)</button>
-          </div>
-        </form>
-      </section>
-
-      <section class="card">
-        <h2>Live Water Flow & Telemetry</h2>
-        <div class="telemetry-grid">
-          <div class="stat">
-            <div class="label">Active Card UID</div>
-            <div id="telUid" class="val">--</div>
-          </div>
-          <div class="stat">
-            <div class="label">Remaining Balance</div>
-            <div id="telBal" class="val">0.00 Tk</div>
-          </div>
-          <div class="stat">
-            <div class="label">Water Dispensed</div>
-            <div id="telLiters" class="val">0.000 Ltr</div>
-          </div>
-          <div class="stat">
-            <div class="label">Session Cost</div>
-            <div id="telCost" class="val">0.00 Tk</div>
-          </div>
-        </div>
-        <div class="muted" id="telUpdated">Waiting for telemetry...</div>
-      </section>
+<header>
+  <h1>💧 Water ATM</h1>
+  <div><span id="broker" class="pill off">Broker: offline</span> <span id="dev" class="pill off">Device: offline</span></div>
+</header>
+<main>
+  <section class="card">
+    <h2>Device</h2>
+    <div class="kv">
+      <span>State</span><span id="state">-</span>
+      <span>Pump</span><span id="pump">-</span>
+      <span>IP</span><span id="ip">-</span>
+      <span>Uptime</span><span id="up">-</span>
     </div>
-
-    <section class="card">
-      <h2>Registered Cards</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>UID</th>
-              <th>Name</th>
-              <th>Balance (Tk)</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="cardsTableBody">
-            <tr><td colspan="5" class="muted">No card records received yet.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <div class="grid-2">
-      <section class="card">
-        <h2>Completed Sessions</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>UID</th>
-                <th>Liters</th>
-                <th>Cost</th>
-                <th>Rem. Bal</th>
-              </tr>
-            </thead>
-            <tbody id="sessionsTableBody">
-              <tr><td colspan="5" class="muted">No completed sessions yet.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>MQTT Activity Log</h2>
-        <div id="logBox" class="log-box"></div>
-      </section>
+  </section>
+  <section class="card">
+    <h2>Live session</h2>
+    <div class="kv">
+      <span>Card</span><span id="s_uid">-</span>
+      <span>Water</span><span class="big" id="s_l">0.00 L</span>
+      <span>Cost</span><span id="s_c">0.00 Tk</span>
+      <span>Balance</span><span id="s_b">-</span>
     </div>
-  </div>
+  </section>
+  <section class="card wide">
+    <h2>Cards (this page acts as the card server — keep it open)</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>UID</th><th>Name (max 12)</th><th>Balance (Tk)</th><th>Active</th><th></th></tr></thead>
+      <tbody id="cards"></tbody>
+    </table></div>
+    <div class="row">
+      <input id="n_uid" placeholder="Card UID">
+      <input id="n_name" placeholder="Name" maxlength="12">
+      <input id="n_bal" type="number" placeholder="Balance" min="0">
+      <button id="add">Add card</button>
+    </div>
+    <div class="row">
+      <label>Rate (Tk / liter) <input id="rate" type="number" min="0.1" step="0.1" style="width:90px"></label>
+    </div>
+  </section>
+  <section class="card wide"><h2>Session history</h2>
+    <div class="tbl"><table><thead><tr><th>Time</th><th>Card</th><th>Water (L)</th><th>Cost (Tk)</th><th>Balance (Tk)</th></tr></thead><tbody id="hist"></tbody></table></div>
+  </section>
+  <section class="card wide"><h2>Log</h2><div id="log"></div></section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script>
+// Must match the topics in the Arduino sketch. Change both to something unique.
+const P = "wateratm/";
+const T = {chk:P+"card/check", auth:P+"card/auth", tel:P+"telemetry", end:P+"session/end", st:P+"device/state", hb:P+"device/heartbeat"};
+const $ = id => document.getElementById(id);
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+let cards = load("atm_cards", {});
+let hist = load("atm_hist", []);
+let rate = load("atm_rate", 15);
+let lastHb = 0;
 
-  <script>
-    const TOPICS = {
-      cardAdd: "wateratm/card/add",
-      cardQuery: "wateratm/card/query",
-      cardUnknown: "wateratm/card/unknown",
-      cardStatus: "wateratm/card/status",
-      telemetry: "wateratm/telemetry",
-      sessionEnd: "wateratm/session/end",
-      deviceState: "wateratm/device/state",
-      heartbeat: "wateratm/device/heartbeat"
-    };
+function cell(tr, text) { const td = document.createElement("td"); td.textContent = text; tr.appendChild(td); return td; }
+function log(m) { const d = document.createElement("div"); d.textContent = new Date().toLocaleTimeString() + "  " + m; $("log").prepend(d); while ($("log").children.length > 80) $("log").lastChild.remove(); }
+function fmtUp(s) { s = +s || 0; return Math.floor(s/3600) + "h " + Math.floor(s%3600/60) + "m " + (s%60) + "s"; }
 
-    let client = null;
-    let lastHeartbeatMs = 0;
-    const cardsMap = new Map();
-    const unknownSet = new Set();
+function renderCards() {
+  const tb = $("cards"); tb.textContent = "";
+  Object.keys(cards).forEach(uid => {
+    const c = cards[uid], tr = document.createElement("tr");
+    cell(tr, uid); cell(tr, c.name); cell(tr, (+c.balance).toFixed(2));
+    cell(tr, c.active ? "Yes" : "No");
+    const td = cell(tr, "");
+    const top = document.createElement("button"); top.textContent = "Top-up"; top.onclick = () => {
+      const v = parseFloat(prompt("Add amount (Tk) to " + uid)); if (v > 0) { c.balance = +(c.balance + v).toFixed(2); save("atm_cards", cards); renderCards(); } };
+    const tg = document.createElement("button"); tg.className = "g"; tg.textContent = c.active ? "Block" : "Enable"; tg.onclick = () => { c.active = !c.active; save("atm_cards", cards); renderCards(); };
+    const del = document.createElement("button"); del.className = "g"; del.textContent = "Delete"; del.onclick = () => { if (confirm("Delete " + uid + "?")) { delete cards[uid]; save("atm_cards", cards); renderCards(); } };
+    td.append(top, " ", tg, " ", del);
+    tb.appendChild(tr);
+  });
+}
+function renderHist() {
+  const tb = $("hist"); tb.textContent = "";
+  hist.slice(0, 30).forEach(h => { const tr = document.createElement("tr");
+    cell(tr, h.t); cell(tr, h.uid); cell(tr, h.l.toFixed(3)); cell(tr, h.c.toFixed(2)); cell(tr, h.b.toFixed(2)); tb.appendChild(tr); });
+}
 
-    const els = {
-      brokerSelect: document.getElementById("brokerSelect"),
-      connectBtn: document.getElementById("connectBtn"),
-      disconnectBtn: document.getElementById("disconnectBtn"),
-      mqttBadge: document.getElementById("mqttBadge"),
-      nanoOnlineBadge: document.getElementById("nanoOnlineBadge"),
-      devBadge: document.getElementById("devBadge"),
-      pumpBadge: document.getElementById("pumpBadge"),
-      deviceMeta: document.getElementById("deviceMeta"),
-      unknownList: document.getElementById("unknownList"),
-      cardForm: document.getElementById("cardForm"),
-      cardUid: document.getElementById("cardUid"),
-      cardName: document.getElementById("cardName"),
-      cardBalance: document.getElementById("cardBalance"),
-      cardActive: document.getElementById("cardActive"),
-      telUid: document.getElementById("telUid"),
-      telBal: document.getElementById("telBal"),
-      telLiters: document.getElementById("telLiters"),
-      telCost: document.getElementById("telCost"),
-      telUpdated: document.getElementById("telUpdated"),
-      cardsTableBody: document.getElementById("cardsTableBody"),
-      sessionsTableBody: document.getElementById("sessionsTableBody"),
-      logBox: document.getElementById("logBox")
-    };
+$("add").onclick = () => {
+  const uid = $("n_uid").value.trim().toUpperCase();
+  if (uid.length < 6) return alert("UID too short");
+  cards[uid] = { name: $("n_name").value.trim().slice(0, 12), balance: parseFloat($("n_bal").value) || 0, active: true };
+  save("atm_cards", cards); renderCards();
+  $("n_uid").value = $("n_name").value = $("n_bal").value = "";
+};
+$("rate").value = rate;
+$("rate").onchange = () => { const v = parseFloat($("rate").value); if (v > 0) { rate = v; save("atm_rate", v); } };
 
-    function addLog(text) {
-      const time = new Date().toLocaleTimeString();
-      const row = document.createElement("div");
-      row.textContent = `[${time}] ${text}`;
-      els.logBox.prepend(row);
-      while (els.logBox.children.length > 80) {
-        els.logBox.removeChild(els.logBox.lastChild);
-      }
-    }
+const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt", { clientId: "atm_web_" + Math.random().toString(16).slice(2, 10), reconnectPeriod: 3000 });
+client.on("connect", () => {
+  $("broker").textContent = "Broker: online"; $("broker").className = "pill on"; log("Broker connected");
+  client.subscribe([T.chk, T.tel, T.end, T.st, T.hb]);
+});
+client.on("close", () => { $("broker").textContent = "Broker: offline"; $("broker").className = "pill off"; });
 
-    function setMqttBadge(state, label) {
-      els.mqttBadge.className = `badge ${state}`;
-      els.mqttBadge.textContent = label;
-    }
-
-    function markNanoAlive(info) {
-      lastHeartbeatMs = Date.now();
-      els.nanoOnlineBadge.className = "badge ok";
-      els.nanoOnlineBadge.textContent = "Nano: Online";
-      if (info && info.ip) {
-        els.deviceMeta.textContent = `Device ${info.id || "Nano"} | IP: ${info.ip} | Uptime: ${info.uptime || 0}s | Seen: ${new Date().toLocaleTimeString()}`;
-      }
-    }
-
-    setInterval(() => {
-      if (Date.now() - lastHeartbeatMs > 12000) {
-        els.nanoOnlineBadge.className = "badge bad";
-        els.nanoOnlineBadge.textContent = "Nano: Offline";
-      }
-    }, 2000);
-
-    function renderUnknownChips() {
-      if (unknownSet.size === 0) {
-        els.unknownList.innerHTML = '<span class="muted">No unknown cards yet.</span>';
-        return;
-      }
-      els.unknownList.innerHTML = "";
-      unknownSet.forEach((uid) => {
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "unknown-chip";
-        chip.textContent = `Unknown: ${uid} (Use)`;
-        chip.addEventListener("click", () => {
-          els.cardUid.value = uid;
-          els.cardName.focus();
-        });
-        els.unknownList.appendChild(chip);
-      });
-    }
-
-    function renderCardsTable() {
-      if (cardsMap.size === 0) {
-        els.cardsTableBody.innerHTML = '<tr><td colspan="5" class="muted">No card records received yet.</td></tr>';
-        return;
-      }
-      els.cardsTableBody.innerHTML = "";
-      cardsMap.forEach((c) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td><strong>${c.uid}</strong></td>
-          <td>${c.name || "--"}</td>
-          <td>${Number(c.balance || 0).toFixed(2)}</td>
-          <td>${c.active !== false ? "Active" : "Blocked"}</td>
-          <td class="actions">
-            <button type="button" class="sm secondary" data-action="edit" data-uid="${c.uid}">Edit</button>
-            <button type="button" class="sm secondary" data-action="query" data-uid="${c.uid}">Query</button>
-          </td>
-        `;
-        els.cardsTableBody.appendChild(tr);
-      });
-    }
-
-    function addSessionRow(data) {
-      if (els.sessionsTableBody.querySelector(".muted")) {
-        els.sessionsTableBody.innerHTML = "";
-      }
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${new Date().toLocaleTimeString()}</td>
-        <td>${data.uid || "--"}</td>
-        <td>${Number(data.liters || 0).toFixed(3)}</td>
-        <td>${Number(data.cost || 0).toFixed(2)} Tk</td>
-        <td>${Number(data.balance || 0).toFixed(2)} Tk</td>
-      `;
-      els.sessionsTableBody.prepend(tr);
-    }
-
-    function publishCard(uid, name, balance, active) {
-      if (!client || !client.connected) {
-        alert("Connect to MQTT broker first.");
-        return;
-      }
-      const cleanUid = uid.trim().toUpperCase();
-      const payload = JSON.stringify({
-        uid: cleanUid,
-        name: name.trim(),
-        balance: Number(balance),
-        active: Boolean(active)
-      });
-      client.publish(TOPICS.cardAdd, payload, { retain: true });
-      unknownSet.delete(cleanUid);
-      renderUnknownChips();
-      addLog(`Published card -> ${cleanUid} (${Number(balance).toFixed(2)} Tk)`);
-    }
-
-    function queryCard(uid) {
-      if (!client || !client.connected) return;
-      const cleanUid = uid.trim().toUpperCase();
-      client.publish(TOPICS.cardQuery, JSON.stringify({ uid: cleanUid }));
-      addLog(`Queried card -> ${cleanUid}`);
-    }
-
-    function connectMqtt() {
-      if (client) {
-        client.end(true);
-        client = null;
-      }
-      const url = els.brokerSelect.value;
-      const clientId = "WaterATM_Web_" + Math.random().toString(16).slice(2, 8);
-      setMqttBadge("warn", "Browser MQTT: Connecting...");
-      addLog(`Connecting to ${url}...`);
-
-      client = mqtt.connect(url, {
-        clientId,
-        clean: true,
-        reconnectPeriod: 4000
-      });
-
-      client.on("connect", () => {
-        setMqttBadge("ok", "Browser MQTT: Connected");
-        addLog("Browser MQTT connected.");
-        Object.values(TOPICS).forEach((t) => {
-          if (t !== TOPICS.cardAdd) {
-            client.subscribe(t);
-          }
-        });
-      });
-
-      client.on("reconnect", () => {
-        setMqttBadge("warn", "Browser MQTT: Reconnecting...");
-      });
-
-      client.on("offline", () => {
-        setMqttBadge("bad", "Browser MQTT: Offline");
-      });
-
-      client.on("error", (err) => {
-        setMqttBadge("bad", "Browser MQTT: Error");
-        addLog(`MQTT error: ${err.message || err}`);
-      });
-
-      client.on("message", (topic, message) => {
-        const raw = message.toString();
-        let data = null;
-        try {
-          data = JSON.parse(raw);
-        } catch (_) {
-          addLog(`${topic}: ${raw}`);
-          return;
-        }
-
-        if (topic === TOPICS.heartbeat) {
-          markNanoAlive(data);
-          return;
-        }
-
-        markNanoAlive(null);
-
-        if (topic === TOPICS.cardUnknown && data.uid) {
-          const uid = String(data.uid).trim().toUpperCase();
-          unknownSet.add(uid);
-          if (!els.cardUid.value) {
-            els.cardUid.value = uid;
-          }
-          renderUnknownChips();
-          addLog(`Unknown RFID card: ${uid}`);
-        } else if (topic === TOPICS.cardStatus && data.uid) {
-          const uid = String(data.uid).trim().toUpperCase();
-          cardsMap.set(uid, { ...data, uid });
-          unknownSet.delete(uid);
-          renderUnknownChips();
-          renderCardsTable();
-        } else if (topic === TOPICS.telemetry) {
-          els.telUid.textContent = data.uid || "--";
-          els.telBal.textContent = `${Number(data.balance || 0).toFixed(2)} Tk`;
-          els.telLiters.textContent = `${Number(data.liters || 0).toFixed(3)} Ltr`;
-          els.telCost.textContent = `${Number(data.cost || 0).toFixed(2)} Tk`;
-          els.telUpdated.textContent = `Last update: ${new Date().toLocaleTimeString()}`;
-
-          const pumpActive = Boolean(data.pump);
-          els.pumpBadge.className = `badge ${pumpActive ? "ok" : ""}`;
-          els.pumpBadge.textContent = `Pump: ${pumpActive ? "ON" : "OFF"}`;
-        } else if (topic === TOPICS.deviceState) {
-          const st = data.state || "UNKNOWN";
-          els.devBadge.className = `badge ${st === "FLOWING" || st === "STANDBY" ? "ok" : "warn"}`;
-          els.devBadge.textContent = `State: ${st}`;
-          if (typeof data.pump === "boolean") {
-            els.pumpBadge.className = `badge ${data.pump ? "ok" : ""}`;
-            els.pumpBadge.textContent = `Pump: ${data.pump ? "ON" : "OFF"}`;
-          }
-        } else if (topic === TOPICS.sessionEnd) {
-          addSessionRow(data);
-          addLog(`Session ended for ${data.uid || "--"} (${Number(data.liters || 0).toFixed(3)} Ltr)`);
-        }
-      });
-    }
-
-    els.connectBtn.addEventListener("click", connectMqtt);
-    els.disconnectBtn.addEventListener("click", () => {
-      if (client) {
-        client.end(true);
-        client = null;
-      }
-      setMqttBadge("bad", "Browser MQTT: Disconnected");
-      els.nanoOnlineBadge.className = "badge bad";
-      els.nanoOnlineBadge.textContent = "Nano: Offline";
-      addLog("Disconnected by user.");
-    });
-
-    els.cardForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      publishCard(
-        els.cardUid.value,
-        els.cardName.value,
-        els.cardBalance.value,
-        els.cardActive.value === "true"
-      );
-    });
-
-    els.cardsTableBody.addEventListener("click", (e) => {
-      const btn = e.target.closest("button[data-action]");
-      if (!btn) return;
-      const uid = btn.dataset.uid;
-      const action = btn.dataset.action;
-      if (action === "query") {
-        queryCard(uid);
-      } else if (action === "edit") {
-        const rec = cardsMap.get(uid);
-        if (rec) {
-          els.cardUid.value = rec.uid;
-          els.cardName.value = rec.name || "";
-          els.cardBalance.value = Number(rec.balance || 0).toFixed(2);
-          els.cardActive.value = String(rec.active !== false);
-          els.cardBalance.focus();
-        }
-      }
-    });
-
-    connectMqtt();
-  </script>
+client.on("message", (topic, buf) => {
+  let m; try { m = JSON.parse(buf.toString()); } catch (e) { return; }
+  if (topic === T.chk) {
+    const uid = String(m.uid || "").toUpperCase(), c = cards[uid];
+    const ok = !!(c && c.active && c.balance > 0);
+    client.publish(T.auth, JSON.stringify({ uid, allowed: ok, name: c ? c.name : "", balance: c ? +(+c.balance).toFixed(2) : 0, rate }));
+    log("Card " + uid + (c ? (ok ? " allowed" : " denied (blocked/zero balance)") : " unknown -> denied"));
+  } else if (topic === T.tel) {
+    $("s_uid").textContent = m.uid; $("s_l").textContent = (+m.liters).toFixed(2) + " L";
+    $("s_c").textContent = (+m.cost).toFixed(2) + " Tk"; $("s_b").textContent = (+m.balance).toFixed(2) + " Tk";
+  } else if (topic === T.end) {
+    const c = cards[String(m.uid).toUpperCase()];
+    if (c) { c.balance = +(+m.balance).toFixed(2); save("atm_cards", cards); renderCards(); }
+    hist.unshift({ t: new Date().toLocaleString(), uid: m.uid, l: +m.liters, c: +m.cost, b: +m.balance });
+    hist = hist.slice(0, 200); save("atm_hist", hist); renderHist();
+    log("Session ended: " + m.uid + " " + (+m.liters).toFixed(2) + " L, " + (+m.cost).toFixed(2) + " Tk");
+  } else if (topic === T.st) {
+    $("state").textContent = m.state;
+    $("pump").textContent = m.pump ? "ON" : (m.hold ? "HOLD" : "OFF");
+    $("pump").className = m.pump ? "on" : (m.hold ? "hold" : "off");
+  } else if (topic === T.hb) {
+    lastHb = Date.now(); $("ip").textContent = m.ip; $("up").textContent = fmtUp(m.up);
+  }
+});
+setInterval(() => {
+  const on = Date.now() - lastHb < 12000;
+  $("dev").textContent = "Device: " + (on ? "online" : "offline"); $("dev").className = "pill " + (on ? "on" : "off");
+}, 1000);
+renderCards(); renderHist();
+</script>
 </body>
 </html>
